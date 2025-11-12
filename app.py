@@ -1,21 +1,18 @@
-from flask import Flask, request, render_template
+import streamlit as st
 import librosa
 import numpy as np
 import joblib
-
-app = Flask(__name__)
+import tempfile
 
 # Load trained model & scaler
 qda = joblib.load("models/qda_model.pkl")
 scaler = joblib.load("models/scaler.pkl")
 
-
+# Feature extractor (same as Flask)
 def extract_features(file_path):
     y, sr = librosa.load(file_path, mono=True)
     
-    # Feature 1: length (matching CSV)
     length = len(y)
-
     chroma = librosa.feature.chroma_stft(y=y, sr=sr)
     rms = librosa.feature.rms(y=y)
     spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
@@ -25,12 +22,10 @@ def extract_features(file_path):
     harmony = librosa.effects.harmonic(y)
     percussive = librosa.effects.percussive(y)
     tempo = librosa.beat.tempo(y=y, sr=sr)[0]
-
     mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)
 
     features = [
-        length,  # ✅ Added missing feature!
-
+        length,
         np.mean(chroma), np.var(chroma),
         np.mean(rms), np.var(rms),
         np.mean(spectral_centroid), np.var(spectral_centroid),
@@ -48,39 +43,27 @@ def extract_features(file_path):
 
     return np.array(features).reshape(1, -1)
 
+# Streamlit UI
+st.title("🎵 Music Genre Classification")
+st.write("Upload an audio file to predict its genre (GTZAN + Bollywood support)")
 
+uploaded_file = st.file_uploader("Upload Audio File", type=["wav", "mp3"])
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    if request.method == "POST":
-        if "audio" not in request.files:
-            return render_template("index.html", result="No file uploaded")
+if uploaded_file is not None:
+    # Save file temporarily
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        tmp.write(uploaded_file.read())
+        file_path = tmp.name
 
-        file = request.files["audio"]
-
-        if file.filename == "":
-            return render_template("index.html", result="No file selected")
-
-        # Save temporary
-        path = "uploaded.wav"
-        file.save(path)
-
-        # Extract features & scale
-        features = extract_features(path)
+    try:
+        # Extract & scale features
+        features = extract_features(file_path)
         scaled = scaler.transform(features)
 
-        # Predict genre
+        # Predict
         prediction = qda.predict(scaled)[0]
 
-        return render_template("index.html", result=prediction)
+        st.success(f"🎧 **Predicted Genre: {prediction}**")
 
-    return render_template("index.html", result=None)
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
-
-
-
-
-
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
