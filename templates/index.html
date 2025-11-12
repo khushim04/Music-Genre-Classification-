@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Music Genre Classification</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+<div class="container">
+<h2>🎵 Music Genre Classification</h2>
+
+<form action="/" method="POST" enctype="multipart/form-data">
+    <input type="file" name="audio" required>
+    <button type="submit">Predict Genre</button>
+</form>
+
+{% if result %}
+<div class="result-box">
+🎧 Predicted Genre: <b>{{ result }}</b>
+</div>
+{% endif %}
+</div>
+</body>
+
+</html>
